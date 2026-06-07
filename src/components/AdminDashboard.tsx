@@ -257,7 +257,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   id="admin-passwd-input"
                   type="password"
                   required
-                  placeholder={isAr ? "أدخل كلمة المرور (الافتراضية: 1234)" : "Enter password (Try: 1234)"}
+                  placeholder={isAr ? "أدخل كلمة المرور" : "Enter password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3 px-4 text-center text-sm font-semibold tracking-wide text-slate-800 focus:border-teal-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-teal-500 transition-all"
@@ -281,9 +281,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             </form>
             
-            <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800/60 text-[11px] text-slate-400 space-y-1">
-              <p>{isAr ? "ملاحظة أمنية: يمكنك استخدام الكلمة السريعة:" : "For verification, please use developer master-key:"}</p>
-              <code className="bg-slate-100 dark:bg-slate-950 px-2 py-0.5 rounded font-mono text-teal-600 dark:text-teal-400 text-xs font-bold">1234</code>
+            <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800/60 text-[11px] text-slate-400">
+              <p>{isAr ? "دخول مصرح به للموظفين والأطباء فقط." : "Authorized personnel and medical staff only."}</p>
             </div>
           </motion.div>
         </div>
