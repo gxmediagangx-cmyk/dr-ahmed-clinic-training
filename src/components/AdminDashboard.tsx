@@ -93,7 +93,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Clinical secure doctor password
-    if (password === "1234") {
+    const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || "1234";
+    if (password === adminPassword) {
       setIsAuthenticated(true);
       localStorage.setItem("dr_ahmed_admin_auth", "true");
       setAuthError("");

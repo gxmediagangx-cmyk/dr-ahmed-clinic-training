@@ -36,9 +36,8 @@ import { Reviews } from "./components/Reviews";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { LandingPage } from "./components/LandingPage";
 
-// Reference generated premium images as string paths for Vite
-const clinicHeroImg = "/src/assets/images/clinic_hero_1780763027362.png";
-const drAhmedImg = "/src/assets/images/dr_ahmed_1780763042875.png";
+import clinicHeroImg from "./assets/images/clinic_hero_1780763027362.png";
+import drAhmedImg from "./assets/images/dr_ahmed_1780763042875.png";
 
 export default function App() {
   const [language, setLanguage] = useState<Language>(() => {
