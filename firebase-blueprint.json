@@ -1,0 +1,99 @@
+{
+  "entities": {
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Defines patient dental appointments with clinical specifications and doctor verification status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the appointment"
+        },
+        "patientName": {
+          "type": "string",
+          "description": "Full name of the patient"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Patient telephone contact number for arrival updates"
+        },
+        "serviceId": {
+          "type": "string",
+          "description": "The selected dental treatment identifier (e.g. cosmetic, implant, pediatric)"
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "Reserved date for the session (YYYY-MM-DD)"
+        },
+        "timeSlot": {
+          "type": "string",
+          "description": "Precision clock hours assigned by the patient or doctor"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Patient-specified clinical symptoms, allergies or dental notes"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "confirmed", "cancelled"],
+          "description": "Verification state to shield against spam and schedule arrivals cleanly"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the appointment request was originally placed"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the last modification by the clinic coordinator or doctor"
+        }
+      },
+      "required": ["id", "patientName", "phone", "serviceId", "date", "timeSlot", "status"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Public feedback and ratings left by verified clinic patients",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the review"
+        },
+        "patientName": {
+          "type": "string",
+          "description": "Public display name of the patient"
+        },
+        "rating": {
+          "type": "number",
+          "description": "Rating score out of 5 stars"
+        },
+        "commentEn": {
+          "type": "string",
+          "description": "Patient feedback text in English"
+        },
+        "commentAr": {
+          "type": "string",
+          "description": "Patient feedback text in Arabic (Bilingual target)"
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "Date the review was posted"
+        }
+      },
+      "required": ["id", "patientName", "rating", "commentEn", "commentAr", "date"]
+    }
+  },
+  "firestore": {
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Collection storing all dental appointment registrations"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Collection storing bilingual public patient reviews"
+    }
+  }
+}

@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Appointment, DentalService, Language } from "../types";
 import { timeSlots } from "../data";
+import { subscribeToAppointments, updateAppointment, deleteAppointment } from "../lib/firebase";
 
 interface AdminDashboardProps {
   language: Language;
@@ -81,29 +82,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Synchronize appointments in real-time with automatic custom event triggers
   useEffect(() => {
-    const loadAppointments = () => {
-      const stored = localStorage.getItem("dr_ahmed_appointments");
-      if (stored) {
-        try {
-          setAppointments(JSON.parse(stored));
-        } catch (e) {
-          console.error(e);
-        }
-      } else {
-        const demo = getInitialAppointments();
-        setAppointments(demo);
-        localStorage.setItem("dr_ahmed_appointments", JSON.stringify(demo));
-      }
-    };
-
-    loadAppointments();
-
-    window.addEventListener("storage", loadAppointments);
-    window.addEventListener("appointments-updated", loadAppointments);
-
+    const unsubscribe = subscribeToAppointments((appointmentsList) => {
+      setAppointments(appointmentsList);
+    });
     return () => {
-      window.removeEventListener("storage", loadAppointments);
-      window.removeEventListener("appointments-updated", loadAppointments);
+      unsubscribe();
     };
   }, []);
 
@@ -125,37 +108,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setPassword("");
   };
 
-  const syncAppointments = (updated: Appointment[]) => {
-    setAppointments(updated);
-    localStorage.setItem("dr_ahmed_appointments", JSON.stringify(updated));
-    // Trigger callback to sync with patient's Booking history list
-    if (onAppointmentsChange) {
-      onAppointmentsChange();
-    }
-    // Also dispatch storage event so local listeners update immediately
-    window.dispatchEvent(new Event("storage"));
-  };
-
   // 1. Confirm Request Action (Prevents spam confirmation)
-  const handleConfirmRequest = (id: string) => {
-    const updated = appointments.map((apt) => {
-      if (apt.id === id) {
-        return { ...apt, status: "confirmed" as const };
+  const handleConfirmRequest = async (id: string) => {
+    try {
+      await updateAppointment(id, { status: "confirmed" });
+      if (onAppointmentsChange) {
+        onAppointmentsChange();
       }
-      return apt;
-    });
-    syncAppointments(updated);
+    } catch (e) {
+      console.error("Failed to confirm appointment:", e);
+    }
   };
 
   // 2. Cancel/Decline Action
-  const handleCancelRequest = (id: string) => {
-    const updated = appointments.map((apt) => {
-      if (apt.id === id) {
-        return { ...apt, status: "cancelled" as const };
+  const handleCancelRequest = async (id: string) => {
+    try {
+      await updateAppointment(id, { status: "cancelled" });
+      if (onAppointmentsChange) {
+        onAppointmentsChange();
       }
-      return apt;
-    });
-    syncAppointments(updated);
+    } catch (e) {
+      console.error("Failed to cancel appointment:", e);
+    }
   };
 
   // 3. Delete Request Permanent
@@ -168,9 +142,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       titleEn: "Delete Patient Record",
       messageAr: "هل أنت متأكد من رغبتك في حذف هذا الطلب نهائياً من النظام؟ لا يمكن التراجع عن هذه الخطوة.",
       messageEn: "Are you sure you want to permanently delete this patient record? This action cannot be undone.",
-      onConfirm: () => {
-        const updated = appointments.filter((apt) => apt.id !== id);
-        syncAppointments(updated);
+      onConfirm: async () => {
+        try {
+          await deleteAppointment(id);
+          if (onAppointmentsChange) {
+            onAppointmentsChange();
+          }
+        } catch (e) {
+          console.error("Failed to delete appointment:", e);
+        }
         setConfirmModal(null);
       }
     });
@@ -184,22 +164,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setEditNotes(apt.notes || "");
   };
 
-  const handleSaveEdit = (id: string) => {
-    const updated = appointments.map((apt) => {
-      if (apt.id === id) {
-        return { 
-          ...apt, 
-          date: editDate, 
-          timeSlot: editTimeSlot, 
-          notes: editNotes,
-          // Auto confirm when the doctor gives them a customized time!
-          status: "confirmed" as const
-        };
+  const handleSaveEdit = async (id: string) => {
+    try {
+      await updateAppointment(id, {
+        date: editDate,
+        timeSlot: editTimeSlot,
+        notes: editNotes,
+        status: "confirmed"
+      });
+      if (onAppointmentsChange) {
+        onAppointmentsChange();
       }
-      return apt;
-    });
-    syncAppointments(updated);
-    setEditingId(null);
+      setEditingId(null);
+    } catch (e) {
+      console.error("Failed to update appointment:", e);
+    }
   };
 
   // Reset to demo data for easy testing
@@ -211,9 +190,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       titleEn: "Restore Demo Data",
       messageAr: "هل تريد حقاً مسح كل السجلات الحالية والبدء من جديد بقائمة فارغة مجهزة للاختبار؟",
       messageEn: "Do you want to restore blank initial clinical records? All current entries will be reset.",
-      onConfirm: () => {
-        const demo = getInitialAppointments();
-        syncAppointments(demo);
+      onConfirm: async () => {
+        for (const apt of appointments) {
+          try {
+            await deleteAppointment(apt.id);
+          } catch (e) {
+            console.error("Failed to delete appointment during reset:", e);
+          }
+        }
+        if (onAppointmentsChange) {
+          onAppointmentsChange();
+        }
         setConfirmModal(null);
       }
     });

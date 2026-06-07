@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Star, MessageSquare, Plus, CheckCircle2 } from "lucide-react";
 import { Review, Language } from "../types";
 import { translations, initialReviews } from "../data";
+import { subscribeToReviews, addReview } from "../lib/firebase";
 
 interface ReviewsProps {
   language: Language;
@@ -28,45 +29,43 @@ export const Reviews: React.FC<ReviewsProps> = ({ language }) => {
 
   // Load reviews on mount
   useEffect(() => {
-    const stored = localStorage.getItem("dr_ahmed_reviews");
-    if (stored) {
-      try {
-        setReviewsList(JSON.parse(stored));
-      } catch (e) {
+    const unsubscribe = subscribeToReviews((reviews) => {
+      if (reviews.length === 0) {
         setReviewsList(initialReviews);
+      } else {
+        setReviewsList(reviews);
       }
-    } else {
-      setReviewsList(initialReviews);
-      localStorage.setItem("dr_ahmed_reviews", JSON.stringify(initialReviews));
-    }
+    });
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
-  const handleSubmitReview = (e: React.FormEvent) => {
+  const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!patientName || !comment) return;
 
-    const newReview: Review = {
-      id: "rev_" + Date.now(),
-      patientName,
-      rating,
-      commentEn: isAr ? "" : comment,
-      commentAr: isAr ? comment : "",
-      date: new Date().toISOString().split("T")[0]
-    };
+    try {
+      await addReview({
+        patientName,
+        rating,
+        commentEn: isAr ? "" : comment,
+        commentAr: isAr ? comment : "",
+        date: new Date().toISOString().split("T")[0]
+      });
 
-    const updated = [newReview, ...reviewsList];
-    setReviewsList(updated);
-    localStorage.setItem("dr_ahmed_reviews", JSON.stringify(updated));
-
-    // Form reset
-    setPatientName("");
-    setRating(5);
-    setComment("");
-    setIsSuccess(true);
-    setTimeout(() => {
-      setIsSuccess(false);
-      setShowAddForm(false);
-    }, 2500);
+      // Form reset
+      setPatientName("");
+      setRating(5);
+      setComment("");
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        setShowAddForm(false);
+      }, 2500);
+    } catch (error) {
+      console.error("Failed to add review:", error);
+    }
   };
 
   // Calculate stats

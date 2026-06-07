@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Calendar, Clock, User, Phone, FileText, CheckCircle2, ChevronRight, ChevronLeft, Trash2 } from "lucide-react";
 import { DentalService, Language, Appointment } from "../types";
 import { translations, timeSlots } from "../data";
+import { subscribeToAppointments, addAppointment, deleteAppointment, updateAppointment, isFirebaseConfigured } from "../lib/firebase";
 
 interface BookingFormProps {
   services: DentalService[];
@@ -54,32 +55,37 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
   // Load existing appointments and subscribe to real-time events for appointment changes
   useEffect(() => {
-    const loadAppointments = () => {
-      const stored = localStorage.getItem("dr_ahmed_appointments");
-      if (stored) {
-        try {
-          setMyAppointments(JSON.parse(stored));
-        } catch (e) {
-          console.error(e);
-        }
+    let rawAppointments: Appointment[] = [];
+
+    const applyFilterAndSet = (list: Appointment[]) => {
+      rawAppointments = list;
+      if (isFirebaseConfigured()) {
+        const mySavedIds: string[] = JSON.parse(localStorage.getItem("dr_ahmed_my_appointment_ids") || "[]");
+        setMyAppointments(list.filter(apt => mySavedIds.includes(apt.id)));
       } else {
-        setMyAppointments([]);
+        setMyAppointments(list);
       }
     };
 
-    loadAppointments();
+    const unsubscribe = subscribeToAppointments((appointmentsList) => {
+      applyFilterAndSet(appointmentsList);
+    });
 
-    // Listen for storage changes from other components/views
-    window.addEventListener("storage", loadAppointments);
-    window.addEventListener("appointments-updated", loadAppointments);
+    const handleLocalTrigger = () => {
+      applyFilterAndSet(rawAppointments);
+    };
+
+    window.addEventListener("appointments-updated", handleLocalTrigger);
+    window.addEventListener("storage", handleLocalTrigger);
 
     return () => {
-      window.removeEventListener("storage", loadAppointments);
-      window.removeEventListener("appointments-updated", loadAppointments);
+      unsubscribe();
+      window.removeEventListener("appointments-updated", handleLocalTrigger);
+      window.removeEventListener("storage", handleLocalTrigger);
     };
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!patientName || !phone || !date || !selectedSlot) {
       return;
@@ -87,46 +93,62 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
     setIsSubmitting(true);
 
-    // Simulate clinical registration process
-    setTimeout(() => {
-      const newAppointment: Appointment = {
-        id: "apt_" + Math.random().toString(36).substr(2, 9),
+    try {
+      const createdId = await addAppointment({
         patientName,
         phone,
         serviceId,
         date,
         timeSlot: selectedSlot,
         notes,
-        status: "pending"
-      };
+        status: "pending",
+      });
 
-      const updated = [newAppointment, ...myAppointments];
-      setMyAppointments(updated);
-      localStorage.setItem("dr_ahmed_appointments", JSON.stringify(updated));
-
-      // Dispatch event to synchronize state instantly between doctor and patient views
-      window.dispatchEvent(new Event("storage"));
-      window.dispatchEvent(new Event("appointments-updated"));
+      // Save configuration ID to local list of patient's personal appointment IDs
+      const mySavedIds: string[] = JSON.parse(localStorage.getItem("dr_ahmed_my_appointment_ids") || "[]");
+      if (createdId && !mySavedIds.includes(createdId)) {
+        mySavedIds.push(createdId);
+        localStorage.setItem("dr_ahmed_my_appointment_ids", JSON.stringify(mySavedIds));
+      }
 
       setIsSubmitting(false);
       setShowSuccess(true);
       onSuccess();
+
+      // Trigger synchronization
+      window.dispatchEvent(new Event("appointments-updated"));
 
       // Reset form fields
       setPatientName("");
       setPhone("");
       setNotes("");
       setSelectedSlot("");
-    }, 1500);
+    } catch (error) { 
+      console.error("Booking submission error:", error);
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteAppointment = (id: string) => {
-    const updated = myAppointments.filter((item) => item.id !== id);
-    setMyAppointments(updated);
-    localStorage.setItem("dr_ahmed_appointments", JSON.stringify(updated));
-    // Dispatch events so that the doctor's dashboard receives immediate notifications
-    window.dispatchEvent(new Event("storage"));
-    window.dispatchEvent(new Event("appointments-updated"));
+  const handleDeleteAppointment = async (id: string) => {
+    try {
+      if (isFirebaseConfigured()) {
+        // Under Firebase, soft-cancel status update (authorized for original patient client)
+        await updateAppointment(id, { status: "cancelled" });
+      } else {
+        // Non-Firebase fallback uses standard direct local removal
+        await deleteAppointment(id);
+      }
+
+      // Remove from my list of persistent personal reference IDs so it also disappears instantly from patient's private view
+      const mySavedIds: string[] = JSON.parse(localStorage.getItem("dr_ahmed_my_appointment_ids") || "[]");
+      const updatedIds = mySavedIds.filter(savedId => savedId !== id);
+      localStorage.setItem("dr_ahmed_my_appointment_ids", JSON.stringify(updatedIds));
+
+      // Dispatch update notification so state filters sync instantly
+      window.dispatchEvent(new Event("appointments-updated"));
+    } catch (error) {
+      console.error("Failed to delete/cancel appointment:", error);
+    }
   };
 
   return (
