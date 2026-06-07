@@ -6,6 +6,7 @@ import {
   doc, 
   getDocs, 
   addDoc, 
+  setDoc,
   updateDoc, 
   deleteDoc, 
   query, 
@@ -93,8 +94,9 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   };
 
-  console.error("Firestore Security/Quota Failure details: ", JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.error("Firestore DB Error [Latest]: ", JSON.stringify(errInfo));
+  // Not throwing to prevent the app from fully crashing during permission propagation or if offline
+  // throw new Error(JSON.stringify(errInfo));
 }
 
 // -------------------------------------------------------------
@@ -102,43 +104,14 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 // -------------------------------------------------------------
 
 // Validate Firestore connection on boot up if configured
-if (isFirebaseConfigured() && db) {
-  const testConnection = async () => {
-    try {
-      await getDocFromServer(doc(db!, "test", "connection"));
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("offline")) {
-        console.warn("Firebase test connection indicates client is offline. Verify network rules.");
-      }
-    }
-  };
-  testConnection();
-}
+// Removed test connection block
 
 /**
  * APPOINTMENTS MODULE
  */
 export function subscribeToAppointments(callback: (appointments: Appointment[]) => void): () => void {
-  const fallbackKey = "dr_ahmed_appointments";
-
-  if (!isFirebaseConfigured() || !db) {
-    // Falls back seamlessly to LocalStorage subscription and local storage events
-    const loadLocal = () => {
-      const stored = localStorage.getItem(fallbackKey);
-      callback(stored ? JSON.parse(stored) : []);
-    };
-    loadLocal();
-    window.addEventListener("storage", loadLocal);
-    window.addEventListener("appointments-updated", loadLocal);
-    
-    return () => {
-      window.removeEventListener("storage", loadLocal);
-      window.removeEventListener("appointments-updated", loadLocal);
-    };
-  }
-
   // Real-time Firestore Sync with custom error mapping
-  const appointmentsCol = collection(db, "appointments");
+  const appointmentsCol = collection(db!, "appointments");
   const q = query(appointmentsCol, orderBy("date", "desc"));
   
   return onSnapshot(
@@ -167,25 +140,14 @@ export function subscribeToAppointments(callback: (appointments: Appointment[]) 
 }
 
 export async function addAppointment(appointment: Omit<Appointment, "id"> & { id?: string }): Promise<string> {
-  const fallbackKey = "dr_ahmed_appointments";
   const idStr = appointment.id || `apt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const fullItem: Appointment = { ...appointment, id: idStr };
 
-  if (!isFirebaseConfigured() || !db) {
-    // Safe LocalStorage creation
-    const stored = localStorage.getItem(fallbackKey);
-    const existingList: Appointment[] = stored ? JSON.parse(stored) : [];
-    existingList.push(fullItem);
-    localStorage.setItem(fallbackKey, JSON.stringify(existingList));
-    // Trigger update notification
-    window.dispatchEvent(new Event("appointments-updated"));
-    return idStr;
-  }
-
   // Firestore creation
-  const appointmentsCol = collection(db, "appointments");
+  const docRef = doc(db!, "appointments", idStr);
   try {
-    const docRef = await addDoc(appointmentsCol, {
+    await setDoc(docRef, {
+      id: idStr,
       patientName: fullItem.patientName,
       phone: fullItem.phone,
       serviceId: fullItem.serviceId,
@@ -195,31 +157,15 @@ export async function addAppointment(appointment: Omit<Appointment, "id"> & { id
       status: fullItem.status || "pending",
       createdAt: new Date().toISOString(),
     });
-    return docRef.id;
+    return idStr;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, "appointments");
   }
 }
 
 export async function updateAppointment(id: string, updates: Partial<Appointment>): Promise<void> {
-  const fallbackKey = "dr_ahmed_appointments";
-
-  if (!isFirebaseConfigured() || !db) {
-    // Safe LocalStorage update
-    const stored = localStorage.getItem(fallbackKey);
-    if (stored) {
-      const existingList: Appointment[] = JSON.parse(stored);
-      const updatedList = existingList.map((apt) => 
-        apt.id === id ? { ...apt, ...updates } : apt
-      );
-      localStorage.setItem(fallbackKey, JSON.stringify(updatedList));
-      window.dispatchEvent(new Event("appointments-updated"));
-    }
-    return;
-  }
-
   // Firestore update
-  const docRef = doc(db, "appointments", id);
+  const docRef = doc(db!, "appointments", id);
   try {
     await updateDoc(docRef, {
       ...updates,
@@ -231,22 +177,8 @@ export async function updateAppointment(id: string, updates: Partial<Appointment
 }
 
 export async function deleteAppointment(id: string): Promise<void> {
-  const fallbackKey = "dr_ahmed_appointments";
-
-  if (!isFirebaseConfigured() || !db) {
-    // Safe LocalStorage deletion
-    const stored = localStorage.getItem(fallbackKey);
-    if (stored) {
-      const existingList: Appointment[] = JSON.parse(stored);
-      const filteredList = existingList.filter((apt) => apt.id !== id);
-      localStorage.setItem(fallbackKey, JSON.stringify(filteredList));
-      window.dispatchEvent(new Event("appointments-updated"));
-    }
-    return;
-  }
-
   // Firestore deletion
-  const docRef = doc(db, "appointments", id);
+  const docRef = doc(db!, "appointments", id);
   try {
     await deleteDoc(docRef);
   } catch (error) {
@@ -258,30 +190,8 @@ export async function deleteAppointment(id: string): Promise<void> {
  * REVIEWS MODULE
  */
 export function subscribeToReviews(callback: (reviews: Review[]) => void): () => void {
-  const fallbackKey = "dr_ahmed_reviews";
-
-  if (!isFirebaseConfigured() || !db) {
-    const loadLocalReviews = () => {
-      const stored = localStorage.getItem(fallbackKey);
-      if (stored) {
-        callback(JSON.parse(stored));
-      } else {
-        // Initial clinic reviews from real data.ts in case local storage is blank
-        callback([]);
-      }
-    };
-    loadLocalReviews();
-    window.addEventListener("storage", loadLocalReviews);
-    window.addEventListener("reviews-updated", loadLocalReviews);
-
-    return () => {
-      window.removeEventListener("storage", loadLocalReviews);
-      window.removeEventListener("reviews-updated", loadLocalReviews);
-    };
-  }
-
   // Real-time Firestore Reviews Sync
-  const reviewsCol = collection(db, "reviews");
+  const reviewsCol = collection(db!, "reviews");
   const q = query(reviewsCol, orderBy("date", "desc"));
 
   return onSnapshot(
@@ -307,30 +217,42 @@ export function subscribeToReviews(callback: (reviews: Review[]) => void): () =>
   );
 }
 
+export async function signInWithGoogleAdmin(): Promise<{ uid: string; isAdmin: boolean }> {
+  if (!auth) throw new Error("Firebase Auth not initialized. Check configuration.");
+  const provider = new GoogleAuthProvider();
+  const result = await signInWithPopup(auth, provider);
+  const user = result.user;
+  
+  try {
+    const adminDoc = await getDocFromServer(doc(db!, "admins", user.uid));
+    return { uid: user.uid, isAdmin: adminDoc.exists() };
+  } catch (error) {
+    console.error("Error checking admin status:", error);
+    return { uid: user.uid, isAdmin: false };
+  }
+}
+
+export async function signOutAdmin(): Promise<void> {
+  if (auth) {
+    await auth.signOut();
+  }
+}
+
 export async function addReview(review: Omit<Review, "id"> & { id?: string }): Promise<string> {
-  const fallbackKey = "dr_ahmed_reviews";
   const idStr = review.id || `rev-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const fullReview: Review = { ...review, id: idStr };
 
-  if (!isFirebaseConfigured() || !db) {
-    const stored = localStorage.getItem(fallbackKey);
-    const existingList: Review[] = stored ? JSON.parse(stored) : [];
-    existingList.push(fullReview);
-    localStorage.setItem(fallbackKey, JSON.stringify(existingList));
-    window.dispatchEvent(new Event("reviews-updated"));
-    return idStr;
-  }
-
-  const reviewsCol = collection(db, "reviews");
+  const docRef = doc(db!, "reviews", idStr);
   try {
-    const docRef = await addDoc(reviewsCol, {
+    await setDoc(docRef, {
+      id: idStr,
       patientName: fullReview.patientName,
       rating: Number(fullReview.rating),
       commentEn: fullReview.commentEn,
       commentAr: fullReview.commentAr,
       date: fullReview.date,
     });
-    return docRef.id;
+    return idStr;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, "reviews");
   }

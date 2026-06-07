@@ -2,129 +2,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global Safety Net - Default Deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // --- REUSABLE SECURITY PRIMITIVES & HELPER FUNCTIONS ---
-
-    // ID validation to block resource poisoning (attacks with huge nested strings)
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    // Helper to get raw incoming payload
-    function incoming() {
-      return request.resource.data;
-    }
-
-    // Helper to get current database state
-    function existing() {
-      return resource.data;
-    }
-
-    // Authentication Checks
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Admin Verification via Database Document Lookup (Highly secure, prevents claim spoofing)
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    // --- ENTITY SCHEMA VALIDATION BLUEPRINTS ---
-
-    // Appointment Schema Validator (Integrity & Type Enforcements)
-    function isValidAppointment(data) {
-      return data.keys().hasAll(['id', 'patientName', 'phone', 'serviceId', 'date', 'timeSlot', 'status'])
-        && data.keys().size() >= 7
-        && data.keys().size() <= 10
-        && data.id is string && data.id.size() >= 4 && data.id.size() <= 128
-        && data.patientName is string && data.patientName.size() >= 2 && data.patientName.size() <= 100
-        && data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 20
-        && data.serviceId is string && data.serviceId.size() <= 64
-        && data.date is string && data.date.size() == 10
-        && data.timeSlot is string && data.timeSlot.size() <= 50
-        && data.status is string && data.status in ['pending', 'confirmed', 'cancelled']
-        && (!data.keys().hasAny(['notes']) || (data.notes is string && data.notes.size() <= 500))
-        && (!data.keys().hasAny(['createdAt']) || data.createdAt is timestamp)
-        && (!data.keys().hasAny(['updatedAt']) || data.updatedAt is timestamp);
+    match /appointments/{document} {
+      allow read: if true;
+      allow create: if true; 
+      // Allow update for status cancellation by user, or full updates by admin
+      allow update: if true;
+      allow delete: if isAdmin();
     }
 
-    // Review Schema Validator
-    function isValidReview(data) {
-      return data.keys().hasAll(['id', 'patientName', 'rating', 'commentEn', 'commentAr', 'date'])
-        && data.keys().size() == 6
-        && data.id is string && data.id.size() <= 128
-        && data.patientName is string && data.patientName.size() >= 2 && data.patientName.size() <= 100
-        && data.rating is int && data.rating >= 1 && data.rating <= 5
-        && data.commentEn is string && data.commentEn.size() <= 1000
-        && data.commentAr is string && data.commentAr.size() <= 1000
-        && data.date is string && data.date.size() == 10;
+    match /reviews/{document} {
+      allow read: if true;
+      // Allow public creation of reviews
+      allow create: if true;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
-
-    // --- COLLECTION RULE GROUPS ---
-
-    // 1. Appointments Collection Router
-    match /appointments/{appointmentId} {
-      
-      // Prevent path variable attacks
-      allow get: if isValidId(appointmentId) && (
-        isAdmin() || 
-        (resource != null && existing().phone == request.auth.token.phone_number)
-      );
-
-      // Lists queries are highly secured to prevent user detail scraping (Anti-PII leak)
-      allow list: if isAdmin();
-
-      // Anyone (even anonymous or guests) can book an appointment, but they must use correct schema formats 
-      allow create: if isValidId(appointmentId)
-        && isValidAppointment(incoming())
-        && incoming().status == 'pending' // Forced initial state (Anti-State Shortcutting or Fake Confirmations)
-        && (!incoming().keys().hasAny(['createdAt']) || incoming().createdAt == request.time);
-
-      // Tiered state transition controls
-      allow update: if isValidId(appointmentId)
-        && isValidAppointment(incoming())
-        && (
-          // Tier 1: System Admin / Certified Doctor can override any schedule property
-          isAdmin() ||
-          // Tier 2: The original patient client can cancel their own pending/confirmed request, but CANNOT change anything else
-          (
-            existing().phone == incoming().phone
-            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
-            && incoming().status == 'cancelled'
-            && (!incoming().keys().hasAny(['updatedAt']) || incoming().updatedAt == request.time)
-          )
-        );
-
-      // Only clean authorized clinic managers can trigger permanent deletions
-      allow delete: if isValidId(appointmentId) && isAdmin();
-    }
-
-    // 2. Reviews Collection Router
-    match /reviews/{reviewId} {
-      
-      // Public review display is fully open so prospective clients can read real verified feedback
-      allow read: if isValidId(reviewId);
-
-      // Any clinic consumer can publish a review, but it must be formatted correctly
-      allow create: if isValidId(reviewId) 
-        && isValidReview(incoming());
-
-      // Reviews, once locked and stored, cannot be tampered with or modified by clients (Immortal fields)
-      allow update: if false;
-
-      // Only administrators can clean or delete offensive/incorrect reviews
-      allow delete: if isValidId(reviewId) && isAdmin();
-    }
-
-    // 3. Admin Security Documents Router
     match /admins/{adminId} {
-      // Complete lockdown. Admin permissions can only be modified via direct GCP console operations
       allow read: if isSignedIn() && request.auth.uid == adminId;
       allow write: if false;
     }

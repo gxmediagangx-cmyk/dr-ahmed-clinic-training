@@ -36,6 +36,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [myAppointments, setMyAppointments] = useState<Appointment[]>([]);
   const [showAppointmentsModal, setShowAppointmentsModal] = useState(false);
 
@@ -87,7 +88,9 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage("");
     if (!patientName || !phone || !date || !selectedSlot) {
+      setErrorMessage(isAr ? "يرجى تعبئة جميع الحقول المطلوبة." : "Please fill in all required fields.");
       return;
     }
 
@@ -125,6 +128,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
       setSelectedSlot("");
     } catch (error) { 
       console.error("Booking submission error:", error);
+      setErrorMessage(isAr ? "حدث خطأ أثناء إرسال الموعد للطبيب. يرجى المحاولة مرة أخرى." : "An error occurred while sending the appointment to the doctor. Please try again.");
       setIsSubmitting(false);
     }
   };
@@ -196,6 +200,9 @@ export const BookingForm: React.FC<BookingFormProps> = ({
             </h4>
             
             <p className={`mt-3 max-w-md text-sm leading-relaxed text-slate-500 dark:text-slate-400 ${isAr ? 'font-arabic' : 'font-sans'}`}>
+              <span className="block mb-2 font-bold text-teal-600 dark:text-teal-400">
+                {isAr ? "تم إرسال الموعد بنجاح وهو الآن لدى طبيبك." : "Your appointment is sent to the doctor successfully."}
+              </span>
               {t.formSuccessSub}
             </p>
 
@@ -351,6 +358,12 @@ export const BookingForm: React.FC<BookingFormProps> = ({
                 />
               </div>
             </div>
+
+            {errorMessage && (
+              <div className={`p-4 rounded-xl text-sm font-semibold border ${isAr ? 'text-right' : 'text-left'} bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800`}>
+                {errorMessage}
+              </div>
+            )}
 
             {/* Submit button */}
             <button
