@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { Appointment, DentalService, Language } from "../types";
 import { timeSlots } from "../data";
-import { subscribeToAppointments, updateAppointment, deleteAppointment, signInWithGoogleAdmin, signOutAdmin } from "../lib/firebase";
+import { subscribeToAppointments, updateAppointment, deleteAppointment, signInWithGoogleAdmin, signOutAdmin, subscribeToAdminAuth } from "../lib/firebase";
 
 interface AdminDashboardProps {
   language: Language;
@@ -46,10 +46,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const isAr = language === "ar";
   
   // Auth state
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem("dr_ahmed_admin_auth") === "true";
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
   const [authError, setAuthError] = useState("");
   
   // Dashboard state
@@ -75,6 +74,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onConfirm: () => void;
   } | null>(null);
 
+  useEffect(() => {
+    const unsubscribeAuth = subscribeToAdminAuth((isAdmin) => {
+      setIsAuthenticated(isAdmin);
+      setAuthChecking(false);
+    });
+    
+    return () => {
+      unsubscribeAuth();
+    };
+  }, []);
+
   // Synchronize appointments in real-time with automatic custom event triggers
   useEffect(() => {
     const unsubscribe = subscribeToAppointments((appointmentsList) => {
@@ -92,7 +102,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const { isAdmin } = await signInWithGoogleAdmin();
       if (isAdmin) {
         setIsAuthenticated(true);
-        localStorage.setItem("dr_ahmed_admin_auth", "true");
       } else {
         setAuthError(isAr ? "تم رفض الوصول: حسابك ليس له صلاحيات المشرف." : "Access Denied: Your account does not have admin privileges.");
       }
@@ -111,7 +120,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       console.error(e);
     }
     setIsAuthenticated(false);
-    localStorage.removeItem("dr_ahmed_admin_auth");
   };
 
   // 1. Confirm Request Action (Prevents spam confirmation)
@@ -232,8 +240,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       
-      {!isAuthenticated ? (
-        /* Password Lock Portal Screen */
+      {authChecking ? (
+        <div className="flex flex-col items-center justify-center py-20 text-teal-600">
+          <RefreshCw className="h-8 w-8 animate-spin mb-4" />
+          <p className={`text-slate-500 font-medium ${isAr ? 'font-arabic' : 'font-sans'}`}>
+            {isAr ? "جاري التحقق من الصلاحيات..." : "Checking credentials..."}
+          </p>
+        </div>
+      ) : !isAuthenticated ? (
+        /* Google Auth Admin Portal Screen */
         <div className="max-w-md mx-auto my-12">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -252,8 +267,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </h2>
             <p className={`text-sm text-slate-400 mt-2 ${isAr ? 'font-arabic' : 'font-sans'}`}>
               {isAr 
-                ? "من فضلك أدخل الرمز السري للوصول لطلبات الإجراءات الطبية وجدولة مواعيد المرضى." 
-                : "Secure clinical access authentication. Please enter credential password."}
+                ? "من فضلك قم بتسجيل الدخول باستخدام حساب جوجل للوصول لطلبات الإجراءات الطبية وجدولة مواعيد المرضى." 
+                : "Secure clinical access authentication. Please sign in with your Google admin account."}
             </p>
 
             <div className="mt-8 space-y-4">

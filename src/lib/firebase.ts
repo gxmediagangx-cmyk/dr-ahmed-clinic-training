@@ -16,12 +16,23 @@ import {
   Firestore
 } from "firebase/firestore";
 import { Appointment, Review } from "../types";
-import firebaseConfig from "./firebase-applet-config.json";
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+};
 
 // Detect if custom credentials have been specified (rather than the default placeholders)
 export function isFirebaseConfigured(): boolean {
   return (
-    firebaseConfig &&
+    !!firebaseConfig &&
+    !!firebaseConfig.apiKey &&
+    !!firebaseConfig.projectId &&
     firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY" &&
     firebaseConfig.projectId !== "YOUR_PROJECT_ID" &&
     firebaseConfig.apiKey.trim() !== "" &&
@@ -236,6 +247,22 @@ export async function signOutAdmin(): Promise<void> {
   if (auth) {
     await auth.signOut();
   }
+}
+
+export function subscribeToAdminAuth(callback: (isAdmin: boolean) => void): () => void {
+  if (!auth) return () => {};
+  return auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      try {
+        const adminDoc = await getDocFromServer(doc(db!, "admins", user.uid));
+        callback(adminDoc.exists());
+      } catch (e) {
+        callback(false);
+      }
+    } else {
+      callback(false);
+    }
+  });
 }
 
 export async function addReview(review: Omit<Review, "id"> & { id?: string }): Promise<string> {
