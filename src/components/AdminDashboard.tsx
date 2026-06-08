@@ -105,9 +105,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       } else {
         setAuthError(isAr ? "تم رفض الوصول: حسابك ليس له صلاحيات المشرف." : "Access Denied: Your account does not have admin privileges.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed:", error);
-      setAuthError(isAr ? "حدث خطأ أثناء محاولة تسجيل الدخول." : "An error occurred during login.");
+      if (error && error.code === 'auth/popup-closed-by-user') {
+        // User closed the popup, do not show an error
+        setAuthError("");
+      } else {
+        setAuthError(isAr ? "حدث خطأ أثناء محاولة تسجيل الدخول." : "An error occurred during login.");
+      }
     } finally {
       setIsLoggingIn(false);
     }
