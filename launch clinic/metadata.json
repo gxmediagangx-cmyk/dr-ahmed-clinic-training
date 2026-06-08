@@ -1,0 +1,6 @@
+{
+  "name": "Dr. Ahmed Dental Clinic",
+  "description": "Bilingual (English/Arabic) professional website for Dr. Ahmed Dental Clinic with service listings, interactive appointment booking, patient reviews, and clinic contact information.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

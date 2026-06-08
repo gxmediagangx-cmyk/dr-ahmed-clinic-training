@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;705;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@variant dark (.dark &);
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-arabic: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Global Adjustments for beautifully proportioned Arabic Typography */
+.font-arabic {
+  line-height: 1.65 !important;
+  letter-spacing: 0px !important;
+}
+
+/* Boost Arabic text-size slightly across standard Tailwind classes for perfect balance with Inter */
+.font-arabic .text-xs,
+.font-arabic.text-xs {
+  font-size: 0.825rem !important; /* 13px */
+  line-height: 1.6 !important;
+}
+
+.font-arabic .text-sm,
+.font-arabic.text-sm {
+  font-size: 0.935rem !important; /* 15px */
+  line-height: 1.65 !important;
+}
+
+.font-arabic .text-base,
+.font-arabic.text-base {
+  font-size: 1.05rem !important; /* 16.8px */
+  line-height: 1.7 !important;
+}
+
+.font-arabic .text-lg,
+.font-arabic.text-lg {
+  font-size: 1.15rem !important; /* 18.4px */
+}
+
+.font-arabic .text-xl,
+.font-arabic.text-xl {
+  font-size: 1.3rem !important;
+}
+
+.font-arabic .text-2xl,
+.font-arabic.text-2xl {
+  font-size: 1.6rem !important;
+}
+
+.font-arabic .text-3xl,
+.font-arabic.text-3xl {
+  font-size: 2.0rem !important;
+}
+
+.font-arabic .text-4xl,
+.font-arabic.text-4xl {
+  font-size: 2.35rem !important;
+}
+
+.font-arabic .text-5xl,
+.font-arabic.text-5xl {
+  font-size: 3.2rem !important;
+}
+
+.font-arabic .text-6xl,
+.font-arabic.text-6xl {
+  font-size: 4.15rem !important;
+}
+
+/* Custom scrollbar to keep layout premium */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0d9488;
+}
+
