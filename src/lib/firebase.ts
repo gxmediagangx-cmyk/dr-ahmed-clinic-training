@@ -122,7 +122,13 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
  */
 export function subscribeToAppointments(callback: (appointments: Appointment[]) => void): () => void {
   // Real-time Firestore Sync with custom error mapping
-  const appointmentsCol = collection(db!, "appointments");
+  if (!db) {
+    console.error("Firestore database is not initialized. Check your Firebase environment variables.");
+    callback([]);
+    return () => {};
+  }
+  
+  const appointmentsCol = collection(db, "appointments");
   const q = query(appointmentsCol, orderBy("date", "desc"));
   
   return onSnapshot(
@@ -150,12 +156,16 @@ export function subscribeToAppointments(callback: (appointments: Appointment[]) 
   );
 }
 
-export async function addAppointment(appointment: Omit<Appointment, "id"> & { id?: string }): Promise<string> {
+export async function addAppointment(appointment: Omit<Appointment, "id"> & { id?: string }): Promise<string | undefined> {
+  if (!db) {
+    console.error("Firestore DB not initialized.");
+    return;
+  }
   const idStr = appointment.id || `apt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const fullItem: Appointment = { ...appointment, id: idStr };
 
   // Firestore creation
-  const docRef = doc(db!, "appointments", idStr);
+  const docRef = doc(db, "appointments", idStr);
   try {
     await setDoc(docRef, {
       id: idStr,
@@ -175,8 +185,9 @@ export async function addAppointment(appointment: Omit<Appointment, "id"> & { id
 }
 
 export async function updateAppointment(id: string, updates: Partial<Appointment>): Promise<void> {
+  if (!db) return;
   // Firestore update
-  const docRef = doc(db!, "appointments", id);
+  const docRef = doc(db, "appointments", id);
   try {
     await updateDoc(docRef, {
       ...updates,
@@ -188,8 +199,9 @@ export async function updateAppointment(id: string, updates: Partial<Appointment
 }
 
 export async function deleteAppointment(id: string): Promise<void> {
+  if (!db) return;
   // Firestore deletion
-  const docRef = doc(db!, "appointments", id);
+  const docRef = doc(db, "appointments", id);
   try {
     await deleteDoc(docRef);
   } catch (error) {
@@ -202,7 +214,12 @@ export async function deleteAppointment(id: string): Promise<void> {
  */
 export function subscribeToReviews(callback: (reviews: Review[]) => void): () => void {
   // Real-time Firestore Reviews Sync
-  const reviewsCol = collection(db!, "reviews");
+  if (!db) {
+    console.warn("Firestore database is not initialized. Using empty reviews.");
+    callback([]);
+    return () => {};
+  }
+  const reviewsCol = collection(db, "reviews");
   const q = query(reviewsCol, orderBy("date", "desc"));
 
   return onSnapshot(
@@ -229,13 +246,13 @@ export function subscribeToReviews(callback: (reviews: Review[]) => void): () =>
 }
 
 export async function signInWithGoogleAdmin(): Promise<{ uid: string; isAdmin: boolean }> {
-  if (!auth) throw new Error("Firebase Auth not initialized. Check configuration.");
+  if (!auth || !db) throw new Error("Firebase Auth/DB not initialized. Check configuration.");
   const provider = new GoogleAuthProvider();
   const result = await signInWithPopup(auth, provider);
   const user = result.user;
   
   try {
-    const adminDoc = await getDocFromServer(doc(db!, "admins", user.uid));
+    const adminDoc = await getDocFromServer(doc(db, "admins", user.uid));
     return { uid: user.uid, isAdmin: adminDoc.exists() };
   } catch (error) {
     console.error("Error checking admin status:", error);
@@ -250,11 +267,11 @@ export async function signOutAdmin(): Promise<void> {
 }
 
 export function subscribeToAdminAuth(callback: (isAdmin: boolean) => void): () => void {
-  if (!auth) return () => {};
+  if (!auth || !db) return () => {};
   return auth.onAuthStateChanged(async (user) => {
     if (user) {
       try {
-        const adminDoc = await getDocFromServer(doc(db!, "admins", user.uid));
+        const adminDoc = await getDocFromServer(doc(db, "admins", user.uid));
         callback(adminDoc.exists());
       } catch (e) {
         callback(false);
@@ -265,11 +282,15 @@ export function subscribeToAdminAuth(callback: (isAdmin: boolean) => void): () =
   });
 }
 
-export async function addReview(review: Omit<Review, "id"> & { id?: string }): Promise<string> {
+export async function addReview(review: Omit<Review, "id"> & { id?: string }): Promise<string | undefined> {
+  if (!db) {
+    console.error("Firestore DB not initialized.");
+    return;
+  }
   const idStr = review.id || `rev-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const fullReview: Review = { ...review, id: idStr };
 
-  const docRef = doc(db!, "reviews", idStr);
+  const docRef = doc(db, "reviews", idStr);
   try {
     await setDoc(docRef, {
       id: idStr,
