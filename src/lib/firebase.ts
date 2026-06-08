@@ -267,7 +267,10 @@ export async function signOutAdmin(): Promise<void> {
 }
 
 export function subscribeToAdminAuth(callback: (isAdmin: boolean) => void): () => void {
-  if (!auth || !db) return () => {};
+  if (!auth || !db) {
+    callback(false);
+    return () => {};
+  }
   return auth.onAuthStateChanged(async (user) => {
     if (user) {
       try {
